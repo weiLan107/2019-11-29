@@ -4,6 +4,7 @@ import com.example.aidemo.agent.Agent;
 import com.example.aidemo.harness.AgentHarness;
 import com.example.aidemo.llm.LlmClient;
 import com.example.aidemo.llm.MockLlmClient;
+import com.example.aidemo.llm.OpenAiLlmClient;
 import com.example.aidemo.mcp.InMemoryTransport;
 import com.example.aidemo.mcp.McpClient;
 import com.example.aidemo.mcp.McpServer;
@@ -98,7 +99,9 @@ public class Main {
         // ============================================================
         banner("③ Harness —— 驱动智能体循环：感知→决策→行动");
 
-        LlmClient llm = new MockLlmClient(); // 想接真实模型就换这一行的实现
+        // 默认用确定性的 MockLlmClient（无需联网/Key 即可演示）；
+        // 若设置了环境变量 LLM_API_KEY（或 OPENAI_API_KEY），则切换到真实模型。
+        LlmClient llm = createLlmClient();
         AgentHarness harness = new AgentHarness(agent, llm, /*maxIterations=*/ 8);
 
         String userGoal = "帮我计算 (12 + 8) * 3，并查一下北京的天气，最后做个总结。";
@@ -112,6 +115,34 @@ public class Main {
         System.out.println();
         System.out.println("说明：以上 calculator/text_stats 是 Skill；get_weather 经 MCP 协议接入；");
         System.out.println("整个「思考-调用工具-回填-再思考」的循环由 Harness 驱动；它们合起来构成一个 Agent。");
+    }
+
+    /**
+     * 根据环境变量决定使用真实模型还是 Mock：
+     * <ul>
+     *   <li>LLM_API_KEY 或 OPENAI_API_KEY：API Key（设置后启用真实模型）</li>
+     *   <li>LLM_BASE_URL：接口地址，默认 https://api.openai.com/v1</li>
+     *   <li>LLM_MODEL：模型名，默认 gpt-4o-mini</li>
+     * </ul>
+     */
+    private static LlmClient createLlmClient() {
+        String apiKey = System.getenv("LLM_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            apiKey = System.getenv("OPENAI_API_KEY");
+        }
+        if (apiKey != null && !apiKey.isBlank()) {
+            String baseUrl = envOr("LLM_BASE_URL", "https://api.openai.com/v1");
+            String model = envOr("LLM_MODEL", "gpt-4o-mini");
+            System.out.println("  -> 使用真实模型: " + model + " @ " + baseUrl);
+            return new OpenAiLlmClient(baseUrl, apiKey, model);
+        }
+        System.out.println("  -> 未检测到 LLM_API_KEY / OPENAI_API_KEY，使用 MockLlmClient（确定性演示）。");
+        return new MockLlmClient();
+    }
+
+    private static String envOr(String name, String defaultValue) {
+        String v = System.getenv(name);
+        return (v == null || v.isBlank()) ? defaultValue : v;
     }
 
     private static Map<String, Object> weatherInputSchema() {
