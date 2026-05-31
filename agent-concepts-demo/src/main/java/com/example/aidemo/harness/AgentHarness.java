@@ -94,4 +94,70 @@ public class AgentHarness {
 
         return "（已达到最大步数 " + maxIterations + "，未能得出最终回答）";
     }
+
+    // =====================================================================
+    // 「直接返回」模式：只让模型决策一步，不进入循环、不把工具结果回灌给模型。
+    // 适用于：业务侧想自己掌控工具的执行与结果处理，而不是让模型综合后再回答。
+    // =====================================================================
+
+    /**
+     * 单步决策 + 单次执行的结构化结果。
+     *
+     * @param toolCall    本步是否是工具调用（false 表示模型直接给了文字回答）
+     * @param toolName    工具名（toolCall=true 时有效）
+     * @param arguments   模型给出的工具参数（toolCall=true 时有效）
+     * @param toolResult  工具的原始返回（仅 {@link #runSingleTurn} 执行后有值）
+     * @param finalAnswer 模型直接给出的文字回答（toolCall=false 时有效）
+     * @param thought     模型的思考过程
+     */
+    public record SingleTurnResult(boolean toolCall,
+                                   String toolName,
+                                   java.util.Map<String, Object> arguments,
+                                   String toolResult,
+                                   String finalAnswer,
+                                   String thought) {
+    }
+
+    /**
+     * 模式 A —— 只决策、不执行：
+     * 让模型基于用户目标决策一步，<strong>原样返回它的决定</strong>（可能是工具调用，也可能是最终回答）。
+     * 不执行任何工具、也不再次调用模型。业务侧拿到后可自行决定如何执行 / 是否执行。
+     *
+     * <p>这等价于直接拿原生 function-calling 接口返回的 {@code tool_calls}。</p>
+     */
+    public LlmResponse decideOnce(String userGoal) {
+        List<Message> context = new ArrayList<>();
+        context.add(Message.system(agent.buildSystemPrompt()));
+        context.add(Message.user(userGoal));
+        return llm.complete(context);
+    }
+
+    /**
+     * 模式 B —— 执行一次就返回：
+     * 让模型决策一步；若它要调用工具，则<strong>执行该工具并把"调用信息 + 工具原始结果"直接返回</strong>，
+     * <strong>绝不</strong>把结果回灌给模型做二次加工。若模型直接给出文字回答，则原样返回。
+     */
+    public SingleTurnResult runSingleTurn(String userGoal) {
+        LlmResponse decision = decideOnce(userGoal);
+
+        if (!decision.isToolCall()) {
+            return new SingleTurnResult(false, null, null, null,
+                    decision.finalAnswer(), decision.thought());
+        }
+
+        String name = decision.toolName();
+        String result;
+        try {
+            if (!agent.tools().has(name)) {
+                result = "错误：不存在名为 " + name + " 的工具";
+            } else {
+                result = agent.tools().get(name).execute(decision.arguments());
+            }
+        } catch (Exception e) {
+            result = "工具执行异常: " + e.getMessage();
+        }
+
+        return new SingleTurnResult(true, name, decision.arguments(), result,
+                null, decision.thought());
+    }
 }
