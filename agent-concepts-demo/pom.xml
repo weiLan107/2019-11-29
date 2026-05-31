@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example</groupId>
+    <artifactId>agent-concepts-demo</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>agent-concepts-demo</name>
+    <description>
+        用一个端到端的可运行示例，讲解大模型领域的四个核心名词：
+        Agent（智能体）、MCP（模型上下文协议）、Skill（技能）、Harness（运行骨架）。
+        本工程零外部依赖，仅用 JDK 标准库即可编译运行。
+    </description>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <exec.mainClass>com.example.aidemo.Main</exec.mainClass>
+    </properties>
+
+    <build>
+        <finalName>agent-concepts-demo</finalName>
+        <plugins>
+            <!-- 用 exec:java 直接运行 Main，无需打包 -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <mainClass>${exec.mainClass}</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
